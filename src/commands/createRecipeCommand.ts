@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Command } from './index';
+import { Command } from './baseCommand';
 import { RecipeType } from '../models/recipe';
 
 export class CreateRecipeCommand extends Command {

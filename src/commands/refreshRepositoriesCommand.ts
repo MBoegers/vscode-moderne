@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Command } from './index';
+import { Command } from './baseCommand';
 
 export class RefreshRepositoriesCommand extends Command {
     register(context: vscode.ExtensionContext): void {
