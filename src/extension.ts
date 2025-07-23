@@ -11,15 +11,23 @@ let logger: Logger;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     try {
-        // Initialize logger
+        // Initialize logger first
         logger = new Logger('Moderne Extension');
-        logger.info('Activating Moderne extension...');
+        logger.info('Starting Moderne extension activation...');
 
-        // Initialize services
+        // Initialize services with error handling
+        logger.info('Initializing services...');
         const configService = new ConfigService(context);
+        logger.info('ConfigService initialized');
+        
         const cliService = new CliService(configService, logger);
+        logger.info('CliService initialized');
+        
         const repositoryService = new RepositoryService(cliService, logger);
+        logger.info('RepositoryService initialized');
+        
         const recipeService = new RecipeService(cliService, configService, logger);
+        logger.info('RecipeService initialized');
 
         // Create service registry for dependency injection
         const services = {
@@ -31,22 +39,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         };
 
         // Initialize tree data provider
+        logger.info('Initializing tree data provider...');
         const treeProvider = new ModerneTreeProvider(repositoryService, logger);
         vscode.window.registerTreeDataProvider('moderneExplorer', treeProvider);
+        logger.info('Tree data provider registered');
 
         // Register all commands
+        logger.info('Registering commands...');
         registerCommands(context, services);
+        logger.info('Commands registered successfully');
 
-        // Initialize status bar
-        await initializeStatusBar(services);
+        // Verify command registration
+        const allCommands = await vscode.commands.getCommands(true);
+        const moderneCommands = allCommands.filter(cmd => cmd.startsWith('moderne.'));
+        logger.info(`Found ${moderneCommands.length} Moderne commands: ${moderneCommands.join(', ')}`);
 
-        // Perform initial CLI validation
-        await performInitialValidation(services);
+        // Initialize status bar (non-blocking)
+        initializeStatusBar(services).catch(error => {
+            logger.warn('Status bar initialization failed', error);
+        });
+
+        // Perform initial CLI validation (non-blocking)
+        performInitialValidation(services).catch(error => {
+            logger.warn('Initial CLI validation failed', error);
+        });
 
         logger.info('Moderne extension activated successfully');
 
-        // Show welcome message for first-time users
-        await showWelcomeMessage(configService);
+        // Show welcome message for first-time users (non-blocking)
+        showWelcomeMessage(configService).catch(error => {
+            logger.warn('Welcome message failed', error);
+        });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
