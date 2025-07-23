@@ -35,6 +35,9 @@
     "onCommand:moderne.setActiveRecipe",
     "onCommand:moderne.findUsagesAllRepos",
     "onCommand:moderne.createRecipe",
+    "onCommand:moderne.startDebugSession",
+    "onDebugResolve:moderne-recipe",
+    "onDebugDynamicConfigurations:moderne-recipe",
     "onView:moderneExplorer"
   ],
   "main": "./out/extension.js",
@@ -87,6 +90,84 @@
         "title": "Run Active Recipe",
         "category": "Moderne",
         "icon": "$(play)"
+      },
+      {
+        "command": "moderne.clearSearchResults",
+        "title": "Clear Search Results",
+        "category": "Moderne",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "moderne.toggleSearchGrouping",
+        "title": "Toggle Grouping by Repository",
+        "category": "Moderne",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "moderne.exportSearchResults",
+        "title": "Export Search Results",
+        "category": "Moderne",
+        "icon": "$(export)"
+      },
+      {
+        "command": "moderne.startDebugSession",
+        "title": "Start Debug Session",
+        "category": "Moderne",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "moderne.stopDebugSession",
+        "title": "Stop Debug Session",
+        "category": "Moderne",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "moderne.toggleBreakpoint",
+        "title": "Toggle Breakpoint",
+        "category": "Moderne",
+        "icon": "$(debug-breakpoint)"
+      },
+      {
+        "command": "moderne.debugContinue",
+        "title": "Continue",
+        "category": "Moderne",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "moderne.debugStepOver",
+        "title": "Step Over",
+        "category": "Moderne",
+        "icon": "$(debug-step-over)"
+      },
+      {
+        "command": "moderne.debugStepInto",
+        "title": "Step Into",
+        "category": "Moderne",
+        "icon": "$(debug-step-into)"
+      },
+      {
+        "command": "moderne.debugStepOut",
+        "title": "Step Out",
+        "category": "Moderne",
+        "icon": "$(debug-step-out)"
+      },
+      {
+        "command": "moderne.debugEvaluate",
+        "title": "Evaluate Expression",
+        "category": "Moderne",
+        "icon": "$(symbol-variable)"
+      },
+      {
+        "command": "moderne.setConditionalBreakpoint",
+        "title": "Set Conditional Breakpoint",
+        "category": "Moderne",
+        "icon": "$(debug-breakpoint-conditional)"
+      },
+      {
+        "command": "moderne.removeAllBreakpoints",
+        "title": "Remove All Breakpoints",
+        "category": "Moderne",
+        "icon": "$(debug-remove-breakpoint)"
       }
     ],
     "views": {
@@ -96,12 +177,39 @@
           "name": "Moderne",
           "when": "config.moderne.enabled != false"
         }
+      ],
+      "moderne-search-results": [
+        {
+          "id": "moderneSearchResults",
+          "name": "Search Results",
+          "when": "config.moderne.enabled != false"
+        }
+      ],
+      "debug": [
+        {
+          "id": "moderneDebugView",
+          "name": "Recipe Debug",
+          "when": "config.moderne.enabled != false"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "moderne-search-results",
+          "title": "Moderne Search",
+          "icon": "$(search)"
+        }
       ]
     },
     "viewsWelcome": [
       {
         "view": "moderneExplorer",
         "contents": "Welcome to Moderne for VS Code!\n\nTo get started, configure your Moderne CLI path in settings.\n\n[Open Settings](command:workbench.action.openSettings?%5B%22moderne%22%5D)\n\nFor more information, see our [documentation](https://docs.moderne.io/)."
+      },
+      {
+        "view": "moderneSearchResults",
+        "contents": "No search results yet.\n\nSelect code in the editor and use \"Find Usages on All Repos\" to search across repositories.\n\n[Search Selected Text](command:moderne.findUsagesAllRepos)"
       }
     ],
     "menus": {
@@ -131,6 +239,21 @@
         {
           "command": "moderne.openConfiguration",
           "when": "view == moderneExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "moderne.clearSearchResults",
+          "when": "view == moderneSearchResults",
+          "group": "navigation"
+        },
+        {
+          "command": "moderne.toggleSearchGrouping",
+          "when": "view == moderneSearchResults",
+          "group": "navigation"
+        },
+        {
+          "command": "moderne.exportSearchResults",
+          "when": "view == moderneSearchResults",
           "group": "navigation"
         }
       ],
@@ -234,9 +357,118 @@
           ],
           "default": "info",
           "description": "Logging level for the extension"
+        },
+        "moderne.debug.showInternalMethods": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show internal OpenRewrite methods in debug call stack"
+        },
+        "moderne.debug.enableLiveEdit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable live editing of recipes during debugging"
         }
       }
-    }
+    },
+    "debuggers": [
+      {
+        "type": "moderne-recipe",
+        "label": "Moderne Recipe Debug",
+        "languages": ["java"],
+        "configurationAttributes": {
+          "launch": {
+            "required": ["recipePath", "targetPath"],
+            "properties": {
+              "recipePath": {
+                "type": "string",
+                "description": "Path to the OpenRewrite recipe file",
+                "default": "${file}"
+              },
+              "targetPath": {
+                "type": "string",
+                "description": "Path to the target code to debug against",
+                "default": "${workspaceFolder}"
+              },
+              "enableLiveEdit": {
+                "type": "boolean",
+                "description": "Enable live editing during debugging",
+                "default": true
+              },
+              "showInternalMethods": {
+                "type": "boolean",
+                "description": "Show internal OpenRewrite methods",
+                "default": false
+              },
+              "logLevel": {
+                "type": "string",
+                "enum": ["error", "warn", "info", "debug"],
+                "description": "Debug logging level",
+                "default": "debug"
+              }
+            }
+          },
+          "attach": {
+            "required": ["recipePath", "targetPath", "port"],
+            "properties": {
+              "recipePath": {
+                "type": "string",
+                "description": "Path to the OpenRewrite recipe file",
+                "default": "${file}"
+              },
+              "targetPath": {
+                "type": "string",
+                "description": "Path to the target code to debug against",
+                "default": "${workspaceFolder}"
+              },
+              "port": {
+                "type": "number",
+                "description": "Debug port to attach to",
+                "default": 5005
+              },
+              "logLevel": {
+                "type": "string",
+                "enum": ["error", "warn", "info", "debug"],
+                "description": "Debug logging level",
+                "default": "debug"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "moderne-recipe",
+            "request": "launch",
+            "name": "Debug Current Recipe",
+            "recipePath": "${file}",
+            "targetPath": "${workspaceFolder}",
+            "enableLiveEdit": true,
+            "showInternalMethods": false,
+            "logLevel": "debug"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Moderne: Debug Recipe",
+            "description": "Debug an OpenRewrite recipe",
+            "body": {
+              "type": "moderne-recipe",
+              "request": "launch",
+              "name": "Debug ${1:Recipe Name}",
+              "recipePath": "${2:${file}}",
+              "targetPath": "${3:${workspaceFolder}}",
+              "enableLiveEdit": true,
+              "showInternalMethods": false,
+              "logLevel": "debug"
+            }
+          }
+        ]
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "java"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

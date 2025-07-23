@@ -1,0 +1,243 @@
+name: Security & Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/security.yml'
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Security audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run npm audit
+      id: audit
+      run: |
+        set -o pipefail
+        npm audit --audit-level=moderate --json > audit-results.json || true
+        
+        # Check if there are any issues
+        CRITICAL=$(jq '.vulnerabilities | to_entries | map(select(.value.severity == "critical")) | length' audit-results.json)
+        HIGH=$(jq '.vulnerabilities | to_entries | map(select(.value.severity == "high")) | length' audit-results.json)
+        MODERATE=$(jq '.vulnerabilities | to_entries | map(select(.value.severity == "moderate")) | length' audit-results.json)
+        
+        echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+        echo "high=$HIGH" >> $GITHUB_OUTPUT
+        echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+        
+        echo "Security Audit Results:"
+        echo "Critical: $CRITICAL"
+        echo "High: $HIGH"
+        echo "Moderate: $MODERATE"
+        
+        # Display readable audit results
+        npm audit --audit-level=moderate || true
+        
+    - name: Upload audit results
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-audit-results
+        path: audit-results.json
+        retention-days: 30
+        
+    - name: Create security issue
+      if: steps.audit.outputs.critical > 0 || steps.audit.outputs.high > 0
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const critical = ${{ steps.audit.outputs.critical }};
+          const high = ${{ steps.audit.outputs.high }};
+          const moderate = ${{ steps.audit.outputs.moderate }};
+          
+          const title = `🚨 Security vulnerabilities detected: ${critical} critical, ${high} high, ${moderate} moderate`;
+          const body = `
+          ## Security Audit Alert
+          
+          A security audit has detected vulnerabilities in the project dependencies:
+          
+          - **Critical**: ${critical}
+          - **High**: ${high}
+          - **Moderate**: ${moderate}
+          
+          ### Action Required
+          
+          Please review and update the affected dependencies as soon as possible.
+          
+          ### How to Fix
+          
+          1. Run \`npm audit fix\` to automatically fix issues
+          2. For manual fixes, run \`npm audit\` to see detailed information
+          3. Update dependencies using \`npm update\` where appropriate
+          
+          ### Audit Results
+          
+          See the attached artifact for detailed audit results.
+          
+          ---
+          *This issue was automatically created by the Security workflow.*
+          `;
+          
+          // Check if similar issue already exists
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: ['security', 'automated']
+          });
+          
+          const existingIssue = issues.data.find(issue => 
+            issue.title.includes('Security vulnerabilities detected')
+          );
+          
+          if (!existingIssue) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'bug', 'automated', 'high-priority']
+            });
+          }
+
+  # Dependency updates check
+  dependency-check:
+    name: Dependency Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Check for outdated dependencies
+      id: outdated
+      run: |
+        npm outdated --json > outdated-deps.json || true
+        
+        # Count outdated dependencies
+        OUTDATED_COUNT=$(jq 'length' outdated-deps.json 2>/dev/null || echo "0")
+        echo "outdated-count=$OUTDATED_COUNT" >> $GITHUB_OUTPUT
+        
+        echo "Outdated dependencies: $OUTDATED_COUNT"
+        
+        if [[ $OUTDATED_COUNT -gt 0 ]]; then
+          echo "Outdated dependencies found:"
+          npm outdated || true
+        fi
+        
+    - name: Check license compliance
+      run: |
+        npm install -g license-checker
+        license-checker --summary --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;Unlicense' > license-report.txt || true
+        
+        echo "License compliance check:"
+        cat license-report.txt
+        
+    - name: Upload dependency reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-reports
+        path: |
+          outdated-deps.json
+          license-report.txt
+        retention-days: 30
+
+  # CodeQL Analysis
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript
+        queries: security-extended,security-and-quality
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:javascript"
+
+  # Generate security report
+  security-report:
+    name: Security Report
+    runs-on: ubuntu-latest
+    needs: [security-audit, dependency-check, codeql-analysis]
+    if: always()
+    
+    steps:  
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: reports/
+        
+    - name: Generate security summary
+      run: |
+        echo "## 🔒 Security Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Audit | ${{ needs.security-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Dependency Check | ${{ needs.dependency-check.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| CodeQL Analysis | ${{ needs.codeql-analysis.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.security-audit.result }}" == "success" && 
+              "${{ needs.dependency-check.result }}" == "success" && 
+              "${{ needs.codeql-analysis.result }}" == "success" ]]; then
+          echo "✅ **All security checks passed**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Some security checks failed - review required**" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY

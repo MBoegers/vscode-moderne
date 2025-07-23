@@ -3,7 +3,12 @@ import { ConfigService } from './services/configService';
 import { CliService } from './services/cliService';
 import { RepositoryService } from './services/repositoryService';
 import { RecipeService } from './services/recipeService';
+import { SearchService } from './services/searchService';
+import { DebugService } from './services/debugService';
 import { ModerneTreeProvider } from './providers/moderneTreeProvider';
+import { SearchResultProvider } from './providers/searchResultProvider';
+import { DebugTreeProvider } from './providers/debugTreeProvider';
+import { DebugConfigurationProvider, DebugAdapterDescriptorFactory } from './debug/debugConfigurationProvider';
 import { registerCommands } from './commands';
 import { Logger } from './utils/logger';
 
@@ -28,6 +33,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         
         const recipeService = new RecipeService(cliService, configService, logger);
         logger.info('RecipeService initialized');
+        
+        const searchService = new SearchService(cliService, repositoryService, configService, logger);
+        logger.info('SearchService initialized');
+        
+        const debugService = new DebugService(cliService, configService, logger);
+        logger.info('DebugService initialized');
 
         // Create service registry for dependency injection
         const services = {
@@ -35,6 +46,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             cli: cliService,
             repository: repositoryService,
             recipe: recipeService,
+            search: searchService,
+            debug: debugService,
             logger: logger
         };
 
@@ -43,6 +56,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const treeProvider = new ModerneTreeProvider(repositoryService, recipeService, logger);
         vscode.window.registerTreeDataProvider('moderneExplorer', treeProvider);
         logger.info('Tree data provider registered');
+
+        // Initialize search result provider
+        logger.info('Initializing search result provider...');
+        const searchResultProvider = new SearchResultProvider(searchService, logger);
+        vscode.window.registerTreeDataProvider('moderneSearchResults', searchResultProvider);
+        
+        // Store global reference for command access
+        (global as any).moderneSearchResultProvider = searchResultProvider;
+        logger.info('Search result provider registered');
+
+        // Initialize debug tree provider
+        logger.info('Initializing debug tree provider...');
+        const debugTreeProvider = new DebugTreeProvider(debugService, logger);
+        vscode.window.registerTreeDataProvider('moderneDebugView', debugTreeProvider);
+        
+        // Store global reference for command access
+        (global as any).moderneDebugTreeProvider = debugTreeProvider;
+        logger.info('Debug tree provider registered');
+
+        // Register debug configuration provider
+        logger.info('Registering debug configuration provider...');
+        const debugConfigProvider = new DebugConfigurationProvider(debugService, logger);
+        context.subscriptions.push(
+            vscode.debug.registerDebugConfigurationProvider('moderne-recipe', debugConfigProvider)
+        );
+
+        // Register debug adapter descriptor factory
+        const debugAdapterFactory = new DebugAdapterDescriptorFactory(debugService, logger);
+        context.subscriptions.push(
+            vscode.debug.registerDebugAdapterDescriptorFactory('moderne-recipe', debugAdapterFactory)
+        );
+        logger.info('Debug providers registered');
 
         // Register all commands
         logger.info('Registering commands...');
@@ -83,6 +128,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 export function deactivate(): void {
     if (logger) {
         logger.info('Deactivating Moderne extension...');
+        
+        // Dispose debug service
+        const debugService = (global as any).moderneDebugService;
+        if (debugService) {
+            debugService.dispose();
+        }
+        
         logger.dispose();
     }
 }
@@ -183,5 +235,7 @@ export interface ServiceRegistry {
     cli: CliService;
     repository: RepositoryService;
     recipe: RecipeService;
+    search: SearchService;
+    debug: DebugService;
     logger: Logger;
 }
