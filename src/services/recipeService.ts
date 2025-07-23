@@ -101,6 +101,62 @@ export class RecipeService {
     }
 
     /**
+     * Discover recipes in the workspace
+     */
+    async discoverRecipes(): Promise<Recipe[]> {
+        const recipes: Recipe[] = [];
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+
+        if (!workspaceFolders) {
+            return recipes;
+        }
+
+        try {
+            for (const folder of workspaceFolders) {
+                const folderRecipes = await this.discoverRecipesInFolder(folder.uri.fsPath);
+                recipes.push(...folderRecipes);
+            }
+        } catch (error) {
+            this.logger.error('Failed to discover recipes', error);
+        }
+
+        return recipes;
+    }
+
+    /**
+     * Discover recipes in a specific folder
+     */
+    private async discoverRecipesInFolder(folderPath: string): Promise<Recipe[]> {
+        const recipes: Recipe[] = [];
+
+        try {
+            const files = await vscode.workspace.findFiles(
+                new vscode.RelativePattern(folderPath, '**/*.{java,yml,yaml}'),
+                '**/node_modules/**'
+            );
+
+            for (const file of files) {
+                try {
+                    const document = await vscode.workspace.openTextDocument(file);
+                    const recipeType = await this.detectRecipeType(document);
+
+                    if (recipeType) {
+                        const recipe = await this.parseRecipeFromDocument(document, recipeType);
+                        recipe.isActive = this.activeRecipe?.id === recipe.id;
+                        recipes.push(recipe);
+                    }
+                } catch (error) {
+                    this.logger.warn(`Failed to analyze file ${file.fsPath}`, error);
+                }
+            }
+        } catch (error) {
+            this.logger.error(`Failed to discover recipes in ${folderPath}`, error);
+        }
+
+        return recipes;
+    }
+
+    /**
      * Generate recipe from code context
      */
     async generateRecipe(type: RecipeType, context: CodeContext): Promise<string> {

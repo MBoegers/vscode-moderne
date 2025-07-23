@@ -6,6 +6,8 @@ import { CreateRecipeCommand } from './createRecipeCommand';
 import { RefreshRepositoriesCommand } from './refreshRepositoriesCommand';
 import { CheckCliStatusCommand } from './checkCliStatusCommand';
 import { TestCommand } from './testCommand';
+import { ConfigurationCommand } from './configurationCommand';
+import { RunActiveRecipeCommand } from './runActiveRecipeCommand';
 
 export function registerCommands(
     context: vscode.ExtensionContext,
@@ -17,7 +19,9 @@ export function registerCommands(
         new FindUsagesCommand(services),
         new CreateRecipeCommand(services),
         new RefreshRepositoriesCommand(services),
-        new CheckCliStatusCommand(services)
+        new CheckCliStatusCommand(services),
+        new ConfigurationCommand(services),
+        new RunActiveRecipeCommand(services)
     ];
 
     commands.forEach(command => {

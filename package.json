@@ -75,6 +75,18 @@
         "title": "Check CLI Status",
         "category": "Moderne",
         "icon": "$(info)"
+      },
+      {
+        "command": "moderne.openConfiguration",
+        "title": "Open Configuration",
+        "category": "Moderne",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "moderne.runActiveRecipe",
+        "title": "Run Active Recipe",
+        "category": "Moderne",
+        "icon": "$(play)"
       }
     ],
     "views": {
@@ -115,6 +127,23 @@
           "command": "moderne.refreshRepositories",
           "when": "view == moderneExplorer",
           "group": "navigation"
+        },
+        {
+          "command": "moderne.openConfiguration",
+          "when": "view == moderneExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "moderne.setActiveRecipe",
+          "when": "view == moderneExplorer && viewItem == recipe",
+          "group": "moderne@1"
+        },
+        {
+          "command": "moderne.runActiveRecipe",
+          "when": "view == moderneExplorer && viewItem == activeRecipe",
+          "group": "moderne@1"
         }
       ],
       "commandPalette": [
@@ -216,6 +245,10 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
+    "test:integration": "node ./out/test/runTest.js --grep \"Integration\"",
+    "test:unit": "node ./out/test/runTest.js --grep \"Unit\"",
+    "test:verbose": "node ./out/test/runTest.js --reporter spec",
+    "test:coverage": "nyc --reporter=html --reporter=text npm test",
     "package": "vsce package",
     "publish": "vsce publish"
   },

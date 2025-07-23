@@ -215,9 +215,21 @@ See our [Architecture Documentation](spec/project-architecture.md) for detailed 
 
 ## 📚 Documentation
 
+### 📋 Testing & Quality Assurance
+- **[Integration Tests Documentation](docs/integration-tests.md)** - 37 automated integration tests
+- **[Manual Test Plan](MANUAL_TEST_PLAN.md)** - Comprehensive manual testing procedures  
+- **[Test Automation Guide](TEST_AUTOMATION.md)** - Automation strategy and CI/CD integration
+- **[Automation Summary](AUTOMATION_SUMMARY.md)** - Test coverage and benefits analysis
+
+### 🏗️ Architecture & Development
+- **[Documentation Hub](docs/README.md)** - Complete documentation index
+- **[Architectural Decision Records](docs/adr/)** - Key technical decisions and rationale
+- **[Technical Learnings](docs/learnings/)** - Development insights and best practices
 - **[Extension Specification](spec/vscode-moderne-extension-specification.md)** - Complete feature specification
 - **[Project Architecture](spec/project-architecture.md)** - Technical architecture and design patterns
 - **[Implementation Plan](spec/implementation-plan.md)** - Development roadmap and phases
+
+### 📖 Usage & Examples
 - **[Use Cases](spec/usecases/)** - Detailed usage scenarios and workflows
 
 ## 🐛 Issues and Support

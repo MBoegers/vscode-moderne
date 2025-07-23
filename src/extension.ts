@@ -40,7 +40,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // Initialize tree data provider
         logger.info('Initializing tree data provider...');
-        const treeProvider = new ModerneTreeProvider(repositoryService, logger);
+        const treeProvider = new ModerneTreeProvider(repositoryService, recipeService, logger);
         vscode.window.registerTreeDataProvider('moderneExplorer', treeProvider);
         logger.info('Tree data provider registered');
 
@@ -101,17 +101,41 @@ async function initializeStatusBar(services: any): Promise<void> {
     // Update status based on CLI availability
     try {
         const isValid = await services.cli.validateLicense();
+        const activeRecipe = services.recipe.getActiveRecipe();
+        
         if (isValid) {
-            statusBarItem.text = "$(check) Moderne: Ready";
-            statusBarItem.tooltip = "Moderne CLI is configured and licensed";
+            if (activeRecipe) {
+                statusBarItem.text = `$(play) Moderne: ${activeRecipe.displayName}`;
+                statusBarItem.tooltip = `Moderne CLI ready\nActive recipe: ${activeRecipe.displayName}\nClick to run recipe`;
+                statusBarItem.command = 'moderne.runActiveRecipe';
+            } else {
+                statusBarItem.text = "$(check) Moderne: Ready";
+                statusBarItem.tooltip = "Moderne CLI is configured and licensed\nClick for status details";
+                statusBarItem.command = 'moderne.checkCliStatus';
+            }
         } else {
             statusBarItem.text = "$(warning) Moderne: No License";
-            statusBarItem.tooltip = "Moderne CLI found but no valid license";
+            statusBarItem.tooltip = "Moderne CLI found but no valid license\nClick for configuration";
+            statusBarItem.command = 'moderne.openConfiguration';
         }
     } catch (error) {
         statusBarItem.text = "$(error) Moderne: CLI Error";
-        statusBarItem.tooltip = "Moderne CLI not found or misconfigured";
+        statusBarItem.tooltip = "Moderne CLI not found or misconfigured\nClick for configuration";
+        statusBarItem.command = 'moderne.openConfiguration';
     }
+
+    // Listen for active recipe changes to update status bar
+    services.recipe.onActiveRecipeChanged((recipe: any) => {
+        if (recipe) {
+            statusBarItem.text = `$(play) Moderne: ${recipe.displayName}`;
+            statusBarItem.tooltip = `Active recipe: ${recipe.displayName}\nClick to run recipe`;
+            statusBarItem.command = 'moderne.runActiveRecipe';
+        } else {
+            statusBarItem.text = "$(check) Moderne: Ready";
+            statusBarItem.tooltip = "Moderne CLI ready\nClick for status details";
+            statusBarItem.command = 'moderne.checkCliStatus';
+        }
+    });
 }
 
 async function performInitialValidation(services: any): Promise<void> {

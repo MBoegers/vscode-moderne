@@ -175,6 +175,11 @@ export class ConfigService {
             errors.push('CLI path must be specified when not using system PATH.');
         }
 
+        // Validate JAR path exists if specified
+        if (config.cli.jarPath && !this.pathExists(config.cli.jarPath)) {
+            errors.push(`JAR file not found at: ${config.cli.jarPath}`);
+        }
+
         // Validate multi-repo configurations
         config.multiRepos.organizations.forEach((org, index) => {
             if (!org.name || !org.id) {
@@ -182,7 +187,66 @@ export class ConfigService {
             }
         });
 
+        // Validate local paths exist
+        config.multiRepos.localPaths.forEach((localPath, index) => {
+            if (!this.pathExists(localPath)) {
+                errors.push(`Local repository path not found: ${localPath}`);
+            }
+        });
+
+        // Validate template path if specified
+        if (config.recipes.templatePath && !this.pathExists(config.recipes.templatePath)) {
+            errors.push(`Recipe template directory not found: ${config.recipes.templatePath}`);
+        }
+
         return errors;
+    }
+
+    /**
+     * Validate and get configuration with validation results
+     */
+    getValidatedConfiguration(): { config: ModerneConfiguration; errors: string[]; warnings: string[] } {
+        const config = this.getConfiguration();
+        const errors = this.validateConfiguration();
+        const warnings: string[] = [];
+
+        // Add warnings for potentially problematic configurations
+        if (!config.enabled) {
+            warnings.push('Extension is disabled. Enable it to use Moderne features.');
+        }
+
+        if (config.multiRepos.localPaths.length === 0 && config.multiRepos.organizations.length === 0) {
+            warnings.push('No repository sources configured. Add local paths or organizations to use multi-repo features.');
+        }
+
+        return { config, errors, warnings };
+    }
+
+    /**
+     * Check if a path exists
+     */
+    private pathExists(filePath: string): boolean {
+        try {
+            const fs = require('fs');
+            return fs.existsSync(filePath);
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Get configuration health status
+     */
+    getConfigurationHealth(): { status: 'healthy' | 'warning' | 'error'; issues: string[] } {
+        const { errors, warnings } = this.getValidatedConfiguration();
+        
+        if (errors.length > 0) {
+            return { status: 'error', issues: errors };
+        } else if (warnings.length > 0) {
+            return { status: 'warning', issues: warnings };
+        } else {
+            return { status: 'healthy', issues: [] };
+        }
     }
 
     /**

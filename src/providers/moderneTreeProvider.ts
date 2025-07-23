@@ -1,17 +1,21 @@
 import * as vscode from 'vscode';
 import { RepositoryService } from '../services/repositoryService';
+import { RecipeService } from '../services/recipeService';
 import { Logger } from '../utils/logger';
 import { Repository, Organization, BuildStatus } from '../models/repository';
+import { Recipe } from '../models/recipe';
 
 export class ModerneTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     private repositoryService: RepositoryService;
+    private recipeService: RecipeService;
     private logger: Logger;
 
     private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null | void> = new vscode.EventEmitter<TreeItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<TreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
-    constructor(repositoryService: RepositoryService, logger: Logger) {
+    constructor(repositoryService: RepositoryService, recipeService: RecipeService, logger: Logger) {
         this.repositoryService = repositoryService;
+        this.recipeService = recipeService;
         this.logger = logger;
 
         // Listen for repository changes
@@ -20,6 +24,11 @@ export class ModerneTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         });
 
         this.repositoryService.onOrganizationsChanged(() => {
+            this.refresh();
+        });
+
+        // Listen for active recipe changes
+        this.recipeService.onActiveRecipeChanged(() => {
             this.refresh();
         });
     }
@@ -48,11 +57,30 @@ export class ModerneTreeProvider implements vscode.TreeDataProvider<TreeItem> {
             return Promise.resolve(this.getRepositoryDetails(element.repository));
         }
 
+        if (element instanceof RecipesTreeItem) {
+            // Show discovered recipes
+            return this.getRecipeItems();
+        }
+
+        if (element instanceof LocalRepositoriesTreeItem) {
+            // Show local repositories
+            return Promise.resolve(this.getRepositoryItems());
+        }
+
         return Promise.resolve([]);
     }
 
     private getRootItems(): TreeItem[] {
         const items: TreeItem[] = [];
+
+        // Add active recipe section at the top
+        const activeRecipe = this.recipeService.getActiveRecipe();
+        if (activeRecipe) {
+            items.push(new ActiveRecipeTreeItem(activeRecipe));
+        }
+
+        // Add recipes section
+        items.push(new RecipesTreeItem());
 
         // Add organizations
         const organizations = this.repositoryService.getOrganizations();
@@ -103,6 +131,16 @@ export class ModerneTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         }
 
         return items;
+    }
+
+    private async getRecipeItems(): Promise<TreeItem[]> {
+        try {
+            const recipes = await this.recipeService.discoverRecipes();
+            return recipes.map((recipe: Recipe) => new RecipeTreeItem(recipe));
+        } catch (error) {
+            this.logger.error('Failed to discover recipes', error);
+            return [new ErrorTreeItem('Failed to discover recipes')];
+        }
     }
 }
 
@@ -259,5 +297,86 @@ class WelcomeTreeItem extends TreeItem {
             title: 'Open Settings',
             arguments: ['moderne']
         };
+    }
+}
+
+class ActiveRecipeTreeItem extends TreeItem {
+    constructor(public readonly recipe: Recipe) {
+        super(`Active: ${recipe.displayName}`, vscode.TreeItemCollapsibleState.None);
+        this.tooltip = `Active recipe: ${recipe.name}\nFile: ${recipe.filePath}`;
+        this.iconPath = new vscode.ThemeIcon('play', new vscode.ThemeColor('charts.green'));
+        this.contextValue = 'activeRecipe';
+        this.description = recipe.type;
+        this.command = {
+            command: 'moderne.runActiveRecipe',
+            title: 'Run Active Recipe'
+        };
+    }
+}
+
+class RecipesTreeItem extends TreeItem {
+    constructor() {
+        super('Recipes', vscode.TreeItemCollapsibleState.Collapsed);
+        this.tooltip = 'Discovered recipes in the workspace';
+        this.iconPath = new vscode.ThemeIcon('book');
+        this.contextValue = 'recipes';
+    }
+}
+
+class RecipeTreeItem extends TreeItem {
+    constructor(public readonly recipe: Recipe) {
+        super(recipe.name, vscode.TreeItemCollapsibleState.None);
+        this.tooltip = this.getTooltip();
+        this.iconPath = this.getIcon();
+        this.contextValue = 'recipe';
+        this.description = recipe.type;
+        this.command = {
+            command: 'vscode.open',
+            title: 'Open Recipe',
+            arguments: [vscode.Uri.file(recipe.filePath)]
+        };
+    }
+
+    private getTooltip(): string {
+        const lines = [
+            `Recipe: ${this.recipe.name}`,
+            `Type: ${this.recipe.type}`,
+            `File: ${this.recipe.filePath}`
+        ];
+
+        if (this.recipe.description) {
+            lines.push(`Description: ${this.recipe.description}`);
+        }
+
+        if (this.recipe.isActive) {
+            lines.push('Status: Active');
+        }
+
+        return lines.join('\n');
+    }
+
+    private getIcon(): vscode.ThemeIcon {
+        const isActive = this.recipe.isActive;
+        const color = isActive ? new vscode.ThemeColor('charts.green') : undefined;
+
+        switch (this.recipe.type) {
+            case 'refaster':
+                return new vscode.ThemeIcon('symbol-method', color);
+            case 'visitor':
+                return new vscode.ThemeIcon('symbol-class', color);
+            case 'yaml':
+                return new vscode.ThemeIcon('symbol-file', color);
+            default:
+                return new vscode.ThemeIcon('file', color);
+        }
+    }
+}
+
+class ErrorTreeItem extends TreeItem {
+    constructor(errorMessage: string) {
+        super(errorMessage, vscode.TreeItemCollapsibleState.None);
+        this.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'));
+        this.contextValue = 'error';
+        this.tooltip = errorMessage;
     }
 }
