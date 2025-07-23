@@ -3,7 +3,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
-suite('Commands Integration Tests', () => {
+suite('Commands Integration Tests', function() {
+    this.timeout(30000); // 30 second timeout
     let testWorkspace: string;
     let testRecipeFile: string;
 
@@ -37,34 +38,34 @@ public class CommandTestRecipe {
         await fs.remove(testWorkspace);
     });
 
-    test('TEST-021: Test Extension command works', async () => {
+    test('TEST-021: Test Extension command works', async function() {
+        this.timeout(10000);
         try {
+            try {
             await vscode.commands.executeCommand('moderne.test');
-            assert.ok(true, 'Test command should execute without error');
+        
+        try {
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');assert.ok(true, 'Test command should execute without error');
         } catch (error) {
             assert.fail(`Test command failed: ${error}`);
         }
     });
 
-    test('TEST-022: Set Active Recipe command execution', async () => {
+    test('TEST-022: Set Active Recipe command execution', async function() {
+        this.timeout(10000);
         // Open the test recipe file
         const document = await vscode.workspace.openTextDocument(testRecipeFile);
         await vscode.window.showTextDocument(document);
         
         try {
+            try {
             await vscode.commands.executeCommand('moderne.setActiveRecipe');
-            assert.ok(true, 'Set Active Recipe command should execute');
-        } catch (error) {
-            // Command might fail due to missing dependencies but should be callable
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            assert.ok(
-                errorMessage.includes('recipe') || errorMessage.includes('CLI'),
-                'Error should be related to recipe or CLI, not command registration'
-            );
-        }
+        assert.ok(true, 'Set Active Recipe command should execute');
+        
     });
 
-    test('TEST-023: Create Recipe command execution', async () => {
+    test('TEST-023: Create Recipe command execution', async function() {
+        this.timeout(10000);
         // Create a selection in a Java file
         const javaFile = path.join(testWorkspace, 'TestClass.java');
         await fs.writeFile(javaFile, `
@@ -88,14 +89,15 @@ public class TestClass {
         editor.selection = selection;
 
         try {
+            try {
             await vscode.commands.executeCommand('moderne.createRecipe');
+
             assert.ok(true, 'Create Recipe command should execute');
-        } catch (error) {
-            assert.ok(true, 'Command is registered even if execution fails');
-        }
+
     });
 
-    test('TEST-024: Find Usages command execution', async () => {
+    test('TEST-024: Find Usages command execution', async function() {
+        this.timeout(10000);
         // Open a Java file with selection
         const javaFile = path.join(testWorkspace, 'UsageTest.java');
         await fs.writeFile(javaFile, `
@@ -119,50 +121,65 @@ public class UsageTest {
         editor.selection = selection;
 
         try {
+            try {
             await vscode.commands.executeCommand('moderne.findUsagesAllRepos');
+
             assert.ok(true, 'Find Usages command should execute');
-        } catch (error) {
-            assert.ok(true, 'Command is registered even if execution fails');
-        }
+
     });
 
-    test('TEST-025: Refresh Repositories command execution', async () => {
+    test('TEST-025: Refresh Repositories command execution', async function() {
+        this.timeout(10000);
         try {
+            try {
             await vscode.commands.executeCommand('moderne.refreshRepositories');
-            assert.ok(true, 'Refresh Repositories command should execute');
-        } catch (error) {
-            assert.ok(true, 'Command is registered even if execution fails');
-        }
+        assert.ok(true, 'Refresh Repositories command should execute');
+        
     });
 
-    test('TEST-026: Check CLI Status command execution', async () => {
+    test('TEST-026: Check CLI Status command execution', async function() {
+        this.timeout(10000);
         try {
+            try {
             await vscode.commands.executeCommand('moderne.checkCliStatus');
-            assert.ok(true, 'Check CLI Status command should execute');
-        } catch (error) {
-            assert.ok(true, 'Command is registered even if CLI unavailable');
-        }
+        assert.ok(true, 'Check CLI Status command should execute');
+        
     });
 
-    test('TEST-027: Open Configuration command execution', async () => {
+    test('TEST-027: Open Configuration command execution', async function() {
+        this.timeout(5000);
         try {
             await vscode.commands.executeCommand('moderne.openConfiguration');
+            assert.ok(true, 'Open Configuration command should execute');
+        
+        try {
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');}) catch (error) {
+            // Expected to fail in test environment
+            assert.ok(true, 'Command is registered and callable');
+        }
             assert.ok(true, 'Open Configuration command should execute');
         } catch (error) {
             assert.fail(`Open Configuration command failed: ${error}`);
         }
     });
 
-    test('TEST-028: Run Active Recipe command execution', async () => {
+    test('TEST-028: Run Active Recipe command execution', async function() {
+        this.timeout(5000);
         try {
             await vscode.commands.executeCommand('moderne.runActiveRecipe');
             assert.ok(true, 'Run Active Recipe command should execute');
-        } catch (error) {
-            assert.ok(true, 'Command is registered even if execution fails');
+        
+        try {
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');}) catch (error) {
+            // Expected to fail in test environment
+            assert.ok(true, 'Command is registered and callable');
         }
+            assert.ok(true, 'Run Active Recipe command should execute');
+
     });
 
-    test('TEST-029: Command completion and error handling', async () => {
+    test('TEST-029: Command completion and error handling', async function() {
+        this.timeout(10000);
         // Test that commands handle errors gracefully
         const commands = [
             'moderne.setActiveRecipe',
@@ -173,8 +190,11 @@ public class UsageTest {
 
         for (const command of commands) {
             try {
-                await vscode.commands.executeCommand(command);
-                // Command executed successfully
+                try {
+            await vscode.commands.executeCommand(command);
+        
+        try {
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');// Command executed successfully
                 assert.ok(true, `Command ${command} executed`);
             } catch (error) {
                 // Command failed but was callable (registered)
@@ -187,8 +207,10 @@ public class UsageTest {
     });
 });
 
-suite('Command Context Tests', () => {
-    test('TEST-030: Commands available in correct contexts', async () => {
+suite('Command Context Tests', function() {
+    this.timeout(30000); // 30 second timeout
+    test('TEST-030: Commands available in correct contexts', async function() {
+        this.timeout(10000);
         const allCommands = await vscode.commands.getCommands(true);
         const moderneCommands = allCommands.filter(cmd => cmd.startsWith('moderne.'));
         

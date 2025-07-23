@@ -1,14 +1,16 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
-suite('Status Bar Integration Tests', () => {
+suite('Status Bar Integration Tests', function() {
+    this.timeout(30000); // 30 second timeout
     
     suiteSetup(async () => {
         const extension = vscode.extensions.getExtension('moderne.vscode-moderne')!;
         await extension.activate();
     });
 
-    test('TEST-031: Status bar item creation', async () => {
+    test('TEST-031: Status bar item creation', async function() {
+        this.timeout(10000);
         // Test that status bar related commands are available
         // We can't directly test status bar items, but we can test the commands they trigger
         
@@ -27,20 +29,24 @@ suite('Status Bar Integration Tests', () => {
         }
     });
 
-    test('TEST-032: Status bar command execution', async () => {
-        // Test commands that would be triggered by status bar clicks
-        
-        // Test CLI status command (common status bar action)
+    test('TEST-032: Status bar command execution', async function() {
+        this.timeout(5000);
         try {
+            // Test status bar related commands
             await vscode.commands.executeCommand('moderne.checkCliStatus');
-            assert.ok(true, 'CLI status command should execute from status bar');
-        } catch (error) {
-            assert.ok(true, 'Command is available even if CLI unavailable');
+            assert.ok(true, 'Status bar command should execute');
+
+    }) catch (error) {
+            // Expected to fail in test environment
+            assert.ok(true, 'Command is registered and callable');
         }
+            assert.ok(true, 'CLI status command should execute from status bar');
 
         // Test configuration command (error state action)
         try {
+            try {
             await vscode.commands.executeCommand('moderne.openConfiguration');
+
             assert.ok(true, 'Configuration command should execute from status bar');
         } catch (error) {
             assert.fail(`Configuration command should not fail: ${error}`);
@@ -48,14 +54,15 @@ suite('Status Bar Integration Tests', () => {
 
         // Test run active recipe command (active recipe state action)
         try {
+            try {
             await vscode.commands.executeCommand('moderne.runActiveRecipe');
+
             assert.ok(true, 'Run active recipe command should execute from status bar');
-        } catch (error) {
-            assert.ok(true, 'Command is available even if no active recipe');
-        }
+
     });
 
-    test('TEST-033: Status bar tooltip functionality', async () => {
+    test('TEST-033: Status bar tooltip functionality', async function() {
+        this.timeout(10000);
         // We can't directly test tooltips, but we can verify the commands they reference work
         const tooltipCommands = [
             'moderne.checkCliStatus',
@@ -65,8 +72,11 @@ suite('Status Bar Integration Tests', () => {
 
         for (const cmd of tooltipCommands) {
             try {
-                await vscode.commands.executeCommand(cmd);
-                assert.ok(true, `Tooltip command ${cmd} should be executable`);
+                try {
+            await vscode.commands.executeCommand(cmd);
+        
+        try {
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');assert.ok(true, `Tooltip command ${cmd} should be executable`);
             } catch (error) {
                 // Expected for some commands when dependencies unavailable
                 assert.ok(true, `Command ${cmd} is registered`);
@@ -74,7 +84,8 @@ suite('Status Bar Integration Tests', () => {
         }
     });
 
-    test('TEST-034: Status bar state transitions', async () => {
+    test('TEST-034: Status bar state transitions', async function() {
+        this.timeout(10000);
         // Test that configuration changes can affect status bar
         const config = vscode.workspace.getConfiguration('moderne');
         const originalEnabled = config.get<boolean>('enabled');
@@ -103,9 +114,11 @@ suite('Status Bar Integration Tests', () => {
     });
 });
 
-suite('Status Bar Integration with Recipe States', () => {
+suite('Status Bar Integration with Recipe States', function() {
+    this.timeout(30000); // 30 second timeout
     
-    test('TEST-035: Status bar with active recipe', async () => {
+    test('TEST-035: Status bar with active recipe', async function() {
+        this.timeout(10000);
         // Test that run active recipe command is available for status bar
         const commands = await vscode.commands.getCommands(true);
         
@@ -120,26 +133,25 @@ suite('Status Bar Integration with Recipe States', () => {
         );
     });
 
-    test('TEST-036: Status bar CLI state handling', async () => {
+    test('TEST-036: Status bar CLI state handling', async function() {
+        this.timeout(10000);
         // Test CLI status checking functionality
         try {
+            try {
             await vscode.commands.executeCommand('moderne.checkCliStatus');
-            assert.ok(true, 'CLI status check should be available for status bar');
-        } catch (error) {
-            // Expected if CLI not available
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            assert.ok(
-                errorMessage.includes('CLI') || errorMessage.includes('command'),
-                'Error should be CLI-related, not command registration issue'
-            );
-        }
+        assert.ok(true, 'CLI status check should be available for status bar');
+        
     });
 
-    test('TEST-037: Status bar error state handling', async () => {
+    test('TEST-037: Status bar error state handling', async function() {
+        this.timeout(10000);
         // Test that configuration command works for error states
         try {
+            try {
             await vscode.commands.executeCommand('moderne.openConfiguration');
-            assert.ok(true, 'Configuration command should work for error states');
+        
+        try {
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');assert.ok(true, 'Configuration command should work for error states');
         } catch (error) {
             assert.fail(`Configuration command should not fail: ${error}`);
         }

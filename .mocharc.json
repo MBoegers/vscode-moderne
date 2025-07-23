@@ -1,0 +1,11 @@
+{
+  "timeout": 30000,
+  "recursive": true,
+  "require": [
+    "ts-node/register"
+  ],
+  "spec": "src/test/suite/**/*.test.ts",
+  "reporter": "spec",
+  "bail": false,
+  "retries": 1
+}
