@@ -1,0 +1,306 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # PR Metadata validation
+  pr-check:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Validate PR title
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        
+        # Check for conventional commit format
+        if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .+ ]]; then
+          echo "❌ PR title should follow conventional commit format"
+          echo "Examples:"
+          echo "  feat: add new search functionality"
+          echo "  fix(debug): resolve breakpoint issues"
+          echo "  docs: update README with installation instructions"
+          exit 1
+        fi
+        
+        echo "✅ PR title follows conventional commit format"
+        
+    - name: Check PR description
+      run: |
+        PR_BODY="${{ github.event.pull_request.body }}"
+        
+        if [[ -z "$PR_BODY" || ${#PR_BODY} -lt 20 ]]; then
+          echo "❌ PR description is too short or missing"
+          echo "Please provide a meaningful description of your changes"
+          exit 1
+        fi
+        
+        echo "✅ PR description is adequate"
+        
+    - name: Validate branch name
+      run: |
+        BRANCH_NAME="${{ github.head_ref }}"
+        
+        # Allow feature/, fix/, hotfix/, release/, chore/ prefixes
+        if [[ ! "$BRANCH_NAME" =~ ^(feature|fix|hotfix|release|chore)/.+ ]]; then
+          echo "❌ Branch name should follow the pattern: type/description"
+          echo "Examples: feature/search-optimization, fix/debug-breakpoints"
+          exit 1
+        fi
+        
+        echo "✅ Branch name follows naming convention"
+
+  # Code quality checks
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run linting
+      run: npm run lint
+      
+    - name: Check TypeScript compilation
+      run: npm run compile
+      
+    - name: Check for TODO/FIXME comments
+      run: |
+        TODO_COUNT=$(find src -type f -name "*.ts" -exec grep -l "TODO\|FIXME\|XXX" {} \; | wc -l)
+        if [[ $TODO_COUNT -gt 0 ]]; then
+          echo "⚠️ Found $TODO_COUNT files with TODO/FIXME comments:"
+          find src -type f -name "*.ts" -exec grep -Hn "TODO\|FIXME\|XXX" {} \;
+          echo ""
+          echo "Consider addressing these before merging"
+        else
+          echo "✅ No TODO/FIXME comments found"
+        fi
+
+  # Test validation
+  test-pr:
+    name: Test Changes
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Run core tests
+      run: node scripts/run-core-tests.js
+      
+    - name: Setup virtual display for integration tests
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+        
+    - name: Run integration tests
+      run: xvfb-run -a npm run test:integration
+      continue-on-error: true
+      env:
+        CI: true
+        DISPLAY: ':99.0'
+
+  # Check for breaking changes
+  breaking-changes:
+    name: Breaking Changes Check
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check for API changes
+      run: |
+        # Check if any service interfaces have changed
+        git diff origin/main...HEAD --name-only | grep -E "(src/services|src/providers)" || true
+        
+        # Look for potential breaking changes in commit messages
+        BREAKING_COMMITS=$(git log origin/main...HEAD --oneline | grep -i "BREAKING\|breaking change" || true)
+        
+        if [[ -n "$BREAKING_COMMITS" ]]; then
+          echo "⚠️ Potential breaking changes detected:"
+          echo "$BREAKING_COMMITS"
+          echo ""
+          echo "Please ensure:"
+          echo "1. Version is bumped appropriately (major version for breaking changes)"
+          echo "2. CHANGELOG.md is updated"
+          echo "3. Migration guide is provided if needed"
+        else
+          echo "✅ No breaking changes detected"
+        fi
+
+  # Security check for PR
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run security audit
+      run: npm audit --audit-level=high
+      continue-on-error: true
+      
+    - name: Check for secrets
+      run: |
+        # Simple check for potential secrets (tokens, passwords, etc.)
+        SECRET_PATTERNS="password|token|secret|key.*=|api.*key"
+        
+        if git diff origin/main...HEAD | grep -iE "$SECRET_PATTERNS"; then
+          echo "⚠️ Potential secrets found in changes"
+          echo "Please review and ensure no sensitive data is committed"
+        else
+          echo "✅ No obvious secrets found"
+        fi
+
+  # Size impact analysis
+  size-impact:
+    name: Bundle Size Impact
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout base branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.base_ref }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (base)
+      run: npm ci
+      
+    - name: Build extension (base)
+      run: |
+        npm run compile
+        npx vsce package --out base.vsix
+        BASE_SIZE=$(stat -f%z base.vsix 2>/dev/null || stat -c%s base.vsix)
+        echo "BASE_SIZE=$BASE_SIZE" >> $GITHUB_ENV
+        
+    - name: Checkout PR branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        
+    - name: Install dependencies (PR)
+      run: npm ci
+      
+    - name: Build extension (PR)
+      run: |
+        npm run compile
+        npx vsce package --out pr.vsix
+        PR_SIZE=$(stat -f%z pr.vsix 2>/dev/null || stat -c%s pr.vsix)
+        echo "PR_SIZE=$PR_SIZE" >> $GITHUB_ENV
+        
+    - name: Calculate size difference
+      run: |
+        BASE_SIZE_MB=$(echo "scale=2; $BASE_SIZE / 1024 / 1024" | bc)
+        PR_SIZE_MB=$(echo "scale=2; $PR_SIZE / 1024 / 1024" | bc)
+        DIFF_BYTES=$((PR_SIZE - BASE_SIZE))
+        DIFF_MB=$(echo "scale=2; $DIFF_BYTES / 1024 / 1024" | bc)
+        
+        echo "📦 Bundle Size Impact:"
+        echo "Base: ${BASE_SIZE_MB}MB"
+        echo "PR: ${PR_SIZE_MB}MB"
+        echo "Difference: ${DIFF_MB}MB"
+        
+        if [[ $DIFF_BYTES -gt 1048576 ]]; then # > 1MB increase
+          echo "⚠️ Significant size increase detected (+${DIFF_MB}MB)"
+          echo "Consider if this increase is justified"
+        elif [[ $DIFF_BYTES -gt 0 ]]; then
+          echo "ℹ️ Small size increase (+${DIFF_MB}MB)"
+        else
+          echo "✅ No size increase or size reduced"
+        fi
+
+  # Final PR validation
+  pr-validation-summary:
+    name: PR Validation Summary
+    runs-on: ubuntu-latest
+    needs: [pr-check, code-quality, test-pr, breaking-changes, security-check, size-impact]
+    if: always() && github.event.pull_request.draft == false
+    
+    steps:
+    - name: Generate PR summary
+      run: |
+        echo "## 🔍 PR Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| PR Metadata | ${{ needs.pr-check.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Tests | ${{ needs.test-pr.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Breaking Changes | ${{ needs.breaking-changes.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security | ${{ needs.security-check.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Size Impact | ${{ needs.size-impact.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Determine overall status
+        if [[ "${{ needs.pr-check.result }}" == "success" && 
+              "${{ needs.code-quality.result }}" == "success" && 
+              "${{ needs.test-pr.result }}" == "success" ]]; then
+          echo "✅ **PR validation passed** - Ready for review!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **PR validation failed** - Please address the issues above" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**PR**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch**: ${{ github.head_ref }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Author**: @${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY

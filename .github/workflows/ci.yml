@@ -1,0 +1,348 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Lint and basic validation
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run ESLint
+      run: npm run lint
+      
+    - name: Check TypeScript compilation
+      run: npm run compile
+      
+    - name: Validate package.json
+      run: |
+        node -e "
+          const pkg = require('./package.json');
+          if (!pkg.name || !pkg.version || !pkg.description) {
+            throw new Error('Missing required package.json fields');
+          }
+          console.log('Package validation passed');
+        "
+
+  # Core functionality tests
+  test-core:
+    name: Core Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Run core functionality tests
+      run: node scripts/run-core-tests.js
+      
+    - name: Upload core test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: core-test-results
+        path: |
+          test-results.json
+          *.log
+        retention-days: 7
+
+  # Cross-platform testing
+  test-matrix:
+    name: Test Suite (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    needs: test-core
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: ['18.x', '20.x']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Run unit tests
+      run: npm run test:unit
+      env:
+        CI: true
+        NODE_ENV: test
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: test-results-${{ matrix.os }}-node${{ matrix.node-version }}
+        path: |
+          test-results.xml
+          *.log
+        retention-days: 7
+
+  # Integration tests (Ubuntu only for VSCode compatibility)
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test-core
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Setup virtual display (for VSCode tests)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+        
+    - name: Run integration tests
+      run: xvfb-run -a npm run test:integration
+      env:
+        CI: true
+        NODE_ENV: test
+        DISPLAY: ':99.0'
+        
+    - name: Run search functionality tests
+      run: node scripts/test-search-functionality.js
+      continue-on-error: true
+      
+    - name: Verify debug implementation
+      run: node scripts/verify-debug-implementation.js 
+      continue-on-error: true
+      
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: |
+          test-coverage.log
+          *-validation-report.md
+          *.log
+        retention-days: 14
+
+  # Test coverage analysis
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: [test-matrix, test-integration]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Setup virtual display
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+        
+    - name: Run tests with coverage
+      run: xvfb-run -a npm run test:coverage
+      env:
+        CI: true
+        DISPLAY: ':99.0'
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: vscode-moderne-coverage
+        fail_ci_if_error: false
+        
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/
+        retention-days: 30
+
+  # Extension packaging test
+  package-test:
+    name: Package Extension
+    runs-on: ubuntu-latest
+    needs: [test-matrix, test-integration]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install VSCE
+      run: npm install -g @vscode/vsce
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Package extension
+      run: vsce package --out vscode-moderne.vsix
+      
+    - name: Verify package contents
+      run: |
+        echo "Package created: vscode-moderne.vsix"
+        ls -la *.vsix
+        unzip -l vscode-moderne.vsix | head -20
+        
+    - name: Upload extension package
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package
+        path: vscode-moderne.vsix
+        retention-days: 30
+
+  # Security and dependency checks
+  security:
+    name: Security & Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run npm audit
+      run: npm audit --audit-level=moderate
+      continue-on-error: true
+      
+    - name: Check for outdated dependencies
+      run: npm outdated
+      continue-on-error: true
+      
+    - name: License compliance check
+      run: |
+        npx license-checker --summary
+        echo "License check completed"
+
+  # Final validation
+  validate:
+    name: Final Validation
+    runs-on: ubuntu-latest
+    needs: [test-matrix, test-integration, package-test, coverage, security]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check job results
+      run: |
+        echo "CI Pipeline Results:"
+        echo "===================="
+        echo "Lint: ${{ needs.lint.result }}"
+        echo "Core Tests: ${{ needs.test-core.result }}"
+        echo "Matrix Tests: ${{ needs.test-matrix.result }}"
+        echo "Integration Tests: ${{ needs.test-integration.result }}"
+        echo "Package Test: ${{ needs.package-test.result }}"
+        echo "Coverage: ${{ needs.coverage.result }}"
+        echo "Security: ${{ needs.security.result }}"
+        
+        if [[ "${{ needs.test-matrix.result }}" == "failure" || "${{ needs.test-integration.result }}" == "failure" ]]; then
+          echo "❌ Critical tests failed"
+          exit 1
+        elif [[ "${{ needs.package-test.result }}" == "failure" ]]; then
+          echo "❌ Package creation failed"
+          exit 1
+        else
+          echo "✅ CI pipeline completed successfully"
+        fi
+        
+    - name: Generate CI summary
+      run: |
+        echo "## 🚀 CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Lint & Code Quality | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Core Tests | ${{ needs.test-core.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Cross-platform Tests | ${{ needs.test-matrix.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Integration Tests | ${{ needs.test-integration.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Package Creation | ${{ needs.package-test.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Code Coverage | ${{ needs.coverage.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Checks | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

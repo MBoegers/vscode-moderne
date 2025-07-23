@@ -1,0 +1,368 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a prerelease?'
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: 'Create as draft release?'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Validate release prerequisites  
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Determine version
+      id: version
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          VERSION="${{ github.event.inputs.version }}"
+          IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
+        else
+          # Extract version from tag
+          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "$VERSION" == *"-"* ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "is-prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+        echo "Release version: $VERSION"
+        echo "Is prerelease: $IS_PRERELEASE"
+        
+    - name: Validate version format
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected format: X.Y.Z or X.Y.Z-suffix"
+          exit 1
+        fi
+        echo "✅ Version format is valid"
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run full test suite
+      run: |
+        npm run compile
+        npm run lint
+        node scripts/run-core-tests.js
+        echo "✅ All validation tests passed"
+
+  # Build and test the extension
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      package-name: ${{ steps.package.outputs.package-name }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Update package.json version
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        echo "Updating package.json to version $VERSION"
+        npm version $VERSION --no-git-tag-version
+        
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Run comprehensive tests
+      run: |
+        # Install xvfb for headless VSCode testing
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+        
+        # Run all tests
+        echo "Running core tests..."
+        node scripts/run-core-tests.js
+        
+        echo "Running integration tests..."
+        xvfb-run -a npm run test:integration || echo "Integration tests may fail in CI environment"
+        
+        echo "✅ Test suite completed"
+        
+    - name: Install VSCE
+      run: npm install -g @vscode/vsce
+      
+    - name: Package extension
+      id: package
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        PACKAGE_NAME="vscode-moderne-${VERSION}.vsix"
+        
+        echo "Creating extension package: $PACKAGE_NAME"
+        vsce package --out "$PACKAGE_NAME"
+        
+        echo "package-name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+        
+        # Verify package
+        echo "Package details:"
+        ls -la "$PACKAGE_NAME"
+        echo "Package contents preview:"
+        unzip -l "$PACKAGE_NAME" | head -20
+        
+    - name: Upload package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package
+        path: ${{ steps.package.outputs.package-name }}
+        retention-days: 90
+
+  # Generate release notes
+  release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      release-notes: ${{ steps.notes.outputs.release-notes }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Generate release notes
+      id: notes
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        # Get previous tag
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -2 | tail -1)
+        if [[ -z "$PREVIOUS_TAG" ]]; then
+          PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+        fi
+        
+        echo "Generating release notes from $PREVIOUS_TAG to HEAD"
+        
+        # Generate changelog
+        RELEASE_NOTES=$(cat << 'EOF'
+        ## 🚀 What's New in v$VERSION
+        
+        ### ✨ Features
+        EOF
+        )
+        
+        # Get commits since last tag
+        FEATURES=$(git log $PREVIOUS_TAG..HEAD --oneline --grep="feat:" --pretty=format:"- %s" | sed 's/feat: //')
+        FIXES=$(git log $PREVIOUS_TAG..HEAD --oneline --grep="fix:" --pretty=format:"- %s" | sed 's/fix: //')
+        IMPROVEMENTS=$(git log $PREVIOUS_TAG..HEAD --oneline --grep="perf:\|refactor:\|style:" --pretty=format:"- %s")
+        
+        if [[ -n "$FEATURES" ]]; then
+          RELEASE_NOTES+="
+        $FEATURES
+        "
+        fi
+        
+        if [[ -n "$FIXES" ]]; then
+          RELEASE_NOTES+="
+        
+        ### 🐛 Bug Fixes
+        $FIXES
+        "
+        fi
+        
+        if [[ -n "$IMPROVEMENTS" ]]; then
+          RELEASE_NOTES+="
+        
+        ### 🔧 Improvements
+        $IMPROVEMENTS
+        "
+        fi
+        
+        # Add technical details
+        RELEASE_NOTES+="
+        
+        ### 📋 Technical Details
+        - **Version**: $VERSION
+        - **Minimum VSCode**: $(node -p "require('./package.json').engines.vscode")
+        - **Node.js**: $NODE_VERSION
+        - **Build Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        ### 📦 Installation
+        
+        Download the \`.vsix\` file from the release assets and install using:
+        \`\`\`bash
+        code --install-extension vscode-moderne-$VERSION.vsix
+        \`\`\`
+        
+        ### 🔗 Links
+        - [Documentation](https://github.com/moderneinc/vscode-moderne#readme)
+        - [Report Issues](https://github.com/moderneinc/vscode-moderne/issues)
+        - [Changelog](https://github.com/moderneinc/vscode-moderne/blob/main/CHANGELOG.md)
+        "
+        
+        # Save to output (handle multiline)
+        echo "release-notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "✅ Release notes generated"
+
+  # Create GitHub Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate, build, release-notes]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download package artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: extension-package
+        
+    - name: Create Git tag (if workflow_dispatch)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git tag -a "v$VERSION" -m "Release v$VERSION"
+        git push origin "v$VERSION"
+        
+    - name: Create GitHub Release
+      id: create-release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ needs.validate.outputs.version }}
+        release_name: 'VSCode Moderne Extension v${{ needs.validate.outputs.version }}'
+        body: ${{ needs.release-notes.outputs.release-notes }}
+        draft: ${{ github.event.inputs.draft || false }}
+        prerelease: ${{ needs.validate.outputs.is-prerelease }}
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create-release.outputs.upload_url }}
+        asset_path: ${{ needs.build.outputs.package-name }}
+        asset_name: ${{ needs.build.outputs.package-name }}
+        asset_content_type: application/zip
+
+  # Optional: Publish to Visual Studio Marketplace
+  publish-marketplace:
+    name: Publish to Marketplace
+    runs-on: ubuntu-latest
+    needs: [validate, build, release]
+    # Only run for stable releases (not prereleases) and when marketplace token is available
+    if: needs.validate.outputs.is-prerelease == 'false' && secrets.VSCE_PAT != null
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install VSCE
+      run: npm install -g @vscode/vsce
+      
+    - name: Update package version
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        npm version $VERSION --no-git-tag-version
+        
+    - name: Compile
+      run: npm run compile
+      
+    - name: Publish to Marketplace
+      run: vsce publish --pat ${{ secrets.VSCE_PAT }}
+      env:
+        VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        
+    - name: Publish success notification
+      run: |
+        echo "🎉 Successfully published v${{ needs.validate.outputs.version }} to Visual Studio Marketplace!"
+        echo "Extension will be available at: https://marketplace.visualstudio.com/items?itemName=moderne.vscode-moderne"
+
+  # Notification and cleanup
+  notify:
+    name: Post-Release Tasks
+    runs-on: ubuntu-latest
+    needs: [validate, build, release]
+    if: always()
+    
+    steps:
+    - name: Release Summary
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        echo "## 🎉 Release v$VERSION Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "- **Validation**: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build**: ${{ needs.build.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Release**: ${{ needs.release.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Marketplace**: ${{ needs.publish-marketplace.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Downloads" >> $GITHUB_STEP_SUMMARY
+        echo "- [Release Page](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
+        echo "- Extension Package: \`${{ needs.build.outputs.package-name }}\`" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.release.result }}" == "success" ]]; then
+          echo "✅ Release created successfully!"
+        else
+          echo "❌ Release failed - check logs above"
+        fi

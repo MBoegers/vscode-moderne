@@ -197,6 +197,116 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 4. **Start debugging** (`F5`) to launch Extension Development Host
 
+## 🔄 CI/CD & Workflows
+
+Our project uses GitHub Actions for comprehensive automated testing, security scanning, and releases.
+
+### 🚀 Continuous Integration (`ci.yml`)
+
+**Triggers**: Every push to `main`/`develop` and all pull requests to `main`
+
+**Multi-Stage Pipeline**:
+- **Lint & Code Quality** - ESLint, TypeScript compilation, package.json validation
+- **Core Tests** - Fundamental functionality validation
+- **Cross-Platform Matrix** - Ubuntu/Windows/macOS with Node 18.x/20.x
+- **Integration Tests** - Full VSCode extension testing with xvfb (headless)
+- **Code Coverage** - Coverage analysis with Codecov integration (main branch only)
+- **Package Testing** - Extension packaging validation with VSCE
+- **Security & Dependencies** - npm audit, license compliance, dependency checks
+
+**Cross-Platform Support**: Ensures extension works on all major platforms with comprehensive test matrix.
+
+### 📦 Release Automation (`release.yml`)
+
+**Triggers**: 
+- Version tags (`v*.*.*`, `v*.*.*-*`) 
+- Manual dispatch with version input
+
+**Release Pipeline**:
+1. **Validation** - Version format, full test suite execution
+2. **Build & Test** - Comprehensive testing including integration tests
+3. **Release Notes** - Automatic generation from git commits (conventional commits)
+4. **GitHub Release** - Creates release with packaged extension attachment
+5. **Marketplace Publishing** - Optional publishing to VS Code Marketplace (requires `VSCE_PAT` secret)
+
+**Features**:
+- Automatic semver validation
+- Prerelease support (`v1.0.0-beta.1`)
+- Draft release option
+- Automatic changelog generation
+- Extension package verification
+
+### 🔒 Security & Dependencies (`security.yml`)
+
+**Triggers**: Weekly schedule (Mondays 9 AM UTC), dependency file changes, manual dispatch
+
+**Security Pipeline**:
+- **Security Audit** - npm audit with severity thresholds
+- **Dependency Updates** - Outdated dependency detection
+- **License Compliance** - Automated license checking
+- **CodeQL Analysis** - GitHub's semantic code analysis
+- **Automated Issue Creation** - Creates GitHub issues for critical/high vulnerabilities
+
+### ✅ Pull Request Validation (`pr-validation.yml`)
+
+**Comprehensive PR Checks**:
+- **Metadata Validation** - Conventional commit format, adequate description, branch naming
+- **Code Quality** - Linting, TypeScript compilation, TODO/FIXME detection
+- **Test Execution** - Core and integration test runs
+- **Breaking Changes** - API change detection and documentation requirements
+- **Security Scanning** - Vulnerability and secret detection
+- **Bundle Size Impact** - Size analysis and impact reporting
+
+### 🤖 Dependency Management (`dependabot.yml`)
+
+**Automated Updates**:
+- **npm dependencies** - Weekly updates with grouped minor/patch versions
+- **GitHub Actions** - Weekly action version updates
+- **Security Priority** - Immediate security updates
+- **Review Assignment** - Automatic reviewer assignment to maintainers
+
+### Commands for Local Development
+
+```bash
+# Run linting
+npm run lint
+
+# Compile TypeScript
+npm run compile
+
+# Run full test suite locally
+npm test
+npm run test:integration  # Requires display server
+npm run test:unit
+
+# Generate test coverage
+npm run test:coverage
+
+# Package extension
+npm run package
+```
+
+### Release Process
+
+**Automated Release** (Recommended):
+```bash
+# Create and push a version tag
+git tag v1.2.3
+git push origin v1.2.3
+# GitHub Actions handles the rest
+```
+
+**Manual Release**:
+1. Go to GitHub Actions → Release workflow
+2. Click "Run workflow"
+3. Enter version number (e.g., `1.2.3`)
+4. Select prerelease/draft options as needed
+
+**Marketplace Publishing**:
+- Requires `VSCE_PAT` repository secret
+- Only publishes stable releases (not prereleases)
+- Automatic on successful release creation
+
 ### Project Structure
 
 ```
