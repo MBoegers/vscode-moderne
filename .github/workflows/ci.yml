@@ -148,7 +148,7 @@ jobs:
     - name: Setup virtual display (for VSCode tests)
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb
+        sudo apt-get install -y xvfb dbus-x11
         
     - name: Run integration tests
       run: xvfb-run -a npm run test:integration
@@ -156,6 +156,8 @@ jobs:
         CI: true
         NODE_ENV: test
         DISPLAY: ':99.0'
+        DBUS_SESSION_BUS_ADDRESS: 'disabled:'
+        NO_AT_BRIDGE: '1'
         
     - name: Run search functionality tests
       run: node scripts/test-search-functionality.js
