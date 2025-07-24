@@ -1,7 +1,7 @@
 # VSCode Moderne Extension
 
-[![License](https://img.shields.io/github/license/moderneinc/vscode-moderne)](LICENSE)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/moderneinc/vscode-moderne/ci.yml?branch=main)](https://github.com/moderneinc/vscode-moderne/actions)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Continuous Integration](https://github.com/MBoegers/vscode-moderne/actions/workflows/ci.yml/badge.svg)](https://github.com/MBoegers/vscode-moderne/actions/workflows/ci.yml)
 
 A community-developed Visual Studio Code extension for [Moderne](https://moderne.io) that integrates with the Moderne CLI to streamline OpenRewrite recipe development and testing.
 
