@@ -224,7 +224,7 @@ export class OptimizedSearchService extends SearchService {
             pageSize?: number;
             cursor?: string;
             enableStreaming?: boolean;
-        } = {}
+        } = { searchType: 'find' }
     ): Promise<SearchResultPage> {
         const startTime = Date.now();
         const searchKey = this.generateSearchKey(context, options);
@@ -300,8 +300,8 @@ export class OptimizedSearchService extends SearchService {
             const command = this.buildSearchCommand(context, options);
             command.push('--format', 'jsonl', '--limit', pageSize.toString());
 
-            const output = await this.cliService.executeCommand('mod', command);
-            const lines = output.split('\n').filter(line => line.trim());
+            const result = await this.cliService.executeCommand(['mod', ...command]);
+            const lines = result.success ? (result.stdout || '').split('\n').filter(line => line.trim()) : [];
 
             for (const line of lines) {
                 try {
@@ -468,7 +468,7 @@ export class OptimizedSearchService extends SearchService {
                 endColumn: 0
             };
 
-            const searchResult = await this.searchWithPagination(context, { pageSize: 20 });
+            const searchResult = await this.searchWithPagination(context, { pageSize: 20, searchType: 'find' });
             results = searchResult.results;
         }
 
@@ -529,8 +529,8 @@ export class OptimizedSearchService extends SearchService {
     private rankByRelevance(results: SearchResult[]): SearchResult[] {
         return results.sort((a, b) => {
             // Prioritize exact matches
-            if (a.matchType === 'exact' && b.matchType !== 'exact') return -1;
-            if (b.matchType === 'exact' && a.matchType !== 'exact') return 1;
+            if (a.matchType === 'exact' && b.matchType !== 'exact') {return -1;}
+            if (b.matchType === 'exact' && a.matchType !== 'exact') {return 1;}
             
             // Prioritize files with more matches
             const aMatches = results.filter(r => r.filePath === a.filePath).length;

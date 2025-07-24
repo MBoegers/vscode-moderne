@@ -317,17 +317,16 @@ export class WorkflowService {
             
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
-                    const output = await this.cliService.executeCommand(
-                        step.command,
-                        expandedArgs,
+                    const cliResult = await this.cliService.executeCommand(
+                        [step.command, ...expandedArgs],
                         {
                             timeout: step.timeout || 60000,
                             cwd: context.workspaceRoot
                         }
                     );
 
-                    result.success = true;
-                    result.output = output;
+                    result.success = cliResult.success;
+                    result.output = cliResult.stdout || cliResult.error || '';
                     
                     if (step.onSuccess) {
                         step.onSuccess(result);
@@ -383,7 +382,7 @@ export class WorkflowService {
             vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
 
         const repositories = partial.repositories || 
-            await this.repositoryService.getLocalRepositories();
+            (await this.repositoryService.getRepositories()).map(repo => repo.path);
 
         return {
             workspaceRoot,

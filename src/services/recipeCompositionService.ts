@@ -515,8 +515,15 @@ export class RecipeCompositionService {
             {
                 metadata: {
                     category: 'pattern-based',
+                    complexity: 'moderate' as const,
+                    estimatedDuration: 300,
+                    requiredPermissions: [],
                     supportedLanguages: [...new Set(patterns.map(p => p.metadata.language))],
-                    supportedFrameworks: [...new Set(patterns.map(p => p.metadata.framework).filter(Boolean))]
+                    supportedFrameworks: [...new Set(patterns.map(p => p.metadata.framework).filter(Boolean))],
+                    created: new Date(),
+                    lastModified: new Date(),
+                    usageCount: 0,
+                    successRate: 0
                 }
             }
         );
@@ -696,7 +703,7 @@ export class RecipeCompositionService {
         context: ChainExecutionContext,
         token?: vscode.CancellationToken
     ): Promise<void> {
-        if (!node.children) return;
+        if (!node.children) {return;}
 
         for (const child of node.children) {
             await this.executeNode(child, context, token);
@@ -708,7 +715,7 @@ export class RecipeCompositionService {
         context: ChainExecutionContext,
         token?: vscode.CancellationToken
     ): Promise<void> {
-        if (!node.children) return;
+        if (!node.children) {return;}
 
         const promises = node.children.map(child => 
             this.executeNode(child, context, token)
@@ -817,7 +824,7 @@ export class RecipeCompositionService {
     }
 
     private hasConditions(node: RecipeNode): boolean {
-        if (node.type === 'condition') return true;
+        if (node.type === 'condition') {return true;}
         if (node.children) {
             return node.children.some(child => this.hasConditions(child));
         }
@@ -825,7 +832,7 @@ export class RecipeCompositionService {
     }
 
     private hasParallelism(node: RecipeNode): boolean {
-        if (node.type === 'parallel') return true;
+        if (node.type === 'parallel') {return true;}
         if (node.children) {
             return node.children.some(child => this.hasParallelism(child));
         }
@@ -858,10 +865,10 @@ export class RecipeCompositionService {
         let priority = 0;
         
         patterns.forEach(pattern => {
-            if (pattern.metadata.securityImpact === 'high') priority += 10;
-            if (pattern.metadata.performanceImpact === 'high') priority += 8;
-            if (pattern.metadata.maintainabilityImpact === 'high') priority += 6;
-            if (pattern.confidence > 90) priority += 5;
+            if (pattern.metadata.securityImpact === 'high') {priority += 10;}
+            if (pattern.metadata.performanceImpact === 'high') {priority += 8;}
+            if (pattern.metadata.maintainabilityImpact === 'high') {priority += 6;}
+            if (pattern.confidence > 90) {priority += 5;}
         });
         
         return Math.min(priority, 100);
@@ -869,7 +876,7 @@ export class RecipeCompositionService {
 
     private calculateSuccessRate(chain: RecipeChain): number {
         const chainExecutions = this.executionHistory.filter(exec => exec.chainId === chain.id);
-        if (chainExecutions.length === 0) return 0;
+        if (chainExecutions.length === 0) {return 0;}
         
         const successful = chainExecutions.filter(exec => exec.status === 'completed').length;
         return (successful / chainExecutions.length) * 100;

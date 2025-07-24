@@ -35,18 +35,15 @@ suite('Status Bar Integration Tests', function() {
             // Test status bar related commands
             await vscode.commands.executeCommand('moderne.checkCliStatus');
             assert.ok(true, 'Status bar command should execute');
-
-    }) catch (error) {
+        } catch (error) {
             // Expected to fail in test environment
             assert.ok(true, 'Command is registered and callable');
         }
-            assert.ok(true, 'CLI status command should execute from status bar');
+        assert.ok(true, 'CLI status command should execute from status bar');
 
         // Test configuration command (error state action)
         try {
-            try {
             await vscode.commands.executeCommand('moderne.openConfiguration');
-
             assert.ok(true, 'Configuration command should execute from status bar');
         } catch (error) {
             assert.fail(`Configuration command should not fail: ${error}`);
@@ -54,11 +51,12 @@ suite('Status Bar Integration Tests', function() {
 
         // Test run active recipe command (active recipe state action)
         try {
-            try {
             await vscode.commands.executeCommand('moderne.runActiveRecipe');
-
             assert.ok(true, 'Run active recipe command should execute from status bar');
-
+        } catch (error) {
+            // Expected to fail in test environment
+            assert.ok(true, 'Run active recipe command is registered and callable');
+        }
     });
 
     test('TEST-033: Status bar tooltip functionality', async function() {
@@ -72,11 +70,9 @@ suite('Status Bar Integration Tests', function() {
 
         for (const cmd of tooltipCommands) {
             try {
-                try {
-            await vscode.commands.executeCommand(cmd);
-        
-        try {
-            await vscode.commands.executeCommand('workbench.action.closeAllEditors');assert.ok(true, `Tooltip command ${cmd} should be executable`);
+                await vscode.commands.executeCommand(cmd);
+                await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+                assert.ok(true, `Tooltip command ${cmd} should be executable`);
             } catch (error) {
                 // Expected for some commands when dependencies unavailable
                 assert.ok(true, `Command ${cmd} is registered`);
@@ -137,21 +133,21 @@ suite('Status Bar Integration with Recipe States', function() {
         this.timeout(10000);
         // Test CLI status checking functionality
         try {
-            try {
             await vscode.commands.executeCommand('moderne.checkCliStatus');
-        assert.ok(true, 'CLI status check should be available for status bar');
-        
+            assert.ok(true, 'CLI status check should be available for status bar');
+        } catch (error) {
+            // Expected to fail in test environment
+            assert.ok(true, 'CLI status check command is registered and callable');
+        }
     });
 
     test('TEST-037: Status bar error state handling', async function() {
         this.timeout(10000);
         // Test that configuration command works for error states
         try {
-            try {
             await vscode.commands.executeCommand('moderne.openConfiguration');
-        
-        try {
-            await vscode.commands.executeCommand('workbench.action.closeAllEditors');assert.ok(true, 'Configuration command should work for error states');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+            assert.ok(true, 'Configuration command should work for error states');
         } catch (error) {
             assert.fail(`Configuration command should not fail: ${error}`);
         }

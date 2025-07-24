@@ -564,14 +564,15 @@ export class PatternDetectionService {
         // Use Moderne CLI for semantic analysis
         try {
             const tempFile = await this.createTempFile(codeContent, request.language);
-            const output = await this.cliService.executeCommand('mod', [
+            const result = await this.cliService.executeCommand([
+                'mod',
                 'study',
                 '--scope', 'patterns',
                 '--format', 'json',
                 tempFile
             ]);
 
-            const analysis = JSON.parse(output);
+            const analysis = result.success ? JSON.parse(result.stdout || '{}') : {};
             return this.parseModernePatterns(analysis);
 
         } catch (error) {
@@ -701,10 +702,10 @@ export class PatternDetectionService {
     }
 
     private calculatePriority(pattern: CodePattern): 'low' | 'medium' | 'high' | 'critical' {
-        if (pattern.metadata.securityImpact === 'high') return 'critical';
-        if (pattern.metadata.performanceImpact === 'high') return 'high';
-        if (pattern.confidence >= 90) return 'high';
-        if (pattern.confidence >= 70) return 'medium';
+        if (pattern.metadata.securityImpact === 'high') {return 'critical';}
+        if (pattern.metadata.performanceImpact === 'high') {return 'high';}
+        if (pattern.confidence >= 90) {return 'high';}
+        if (pattern.confidence >= 70) {return 'medium';}
         return 'low';
     }
 
@@ -729,8 +730,8 @@ export class PatternDetectionService {
             return sum + complexity[p.complexity];
         }, 0);
 
-        if (totalComplexity > patterns.length * 2) return 'High';
-        if (totalComplexity > patterns.length * 1.5) return 'Medium';
+        if (totalComplexity > patterns.length * 2) {return 'High';}
+        if (totalComplexity > patterns.length * 1.5) {return 'Medium';}
         return 'Low';
     }
 

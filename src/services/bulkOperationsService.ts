@@ -322,10 +322,11 @@ export class BulkOperationsService {
             args.push(`--${key}`, String(value));
         });
 
-        return await this.cliService.executeCommand('mod', args, {
+        const result = await this.cliService.executeCommand(['mod', ...args], {
             timeout: operation.configuration.timeout,
             cwd: path.dirname(target.path)
         });
+        return result.stdout || result.error || '';
     }
 
     private async analyzeTarget(
@@ -345,10 +346,11 @@ export class BulkOperationsService {
             }
         });
 
-        return await this.cliService.executeCommand('mod', args, {
+        const result = await this.cliService.executeCommand(['mod', ...args], {
             timeout: operation.configuration.timeout,
             cwd: path.dirname(target.path)
         });
+        return result.stdout || result.error || '';
     }
 
     private async validateTarget(
@@ -361,10 +363,11 @@ export class BulkOperationsService {
             target.path
         ];
 
-        return await this.cliService.executeCommand('mod', args, {
+        const result = await this.cliService.executeCommand(['mod', ...args], {
             timeout: operation.configuration.timeout,
             cwd: path.dirname(target.path)
         });
+        return result.stdout || result.error || '';
     }
 
     private async migrateTarget(

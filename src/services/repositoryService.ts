@@ -4,8 +4,8 @@ import { Logger } from '../utils/logger';
 import { Repository, Organization, MultiRepo, RepositoryStatus, BuildStatus } from '../models/repository';
 
 export class RepositoryService {
-    private cliService: CliService;
-    private logger: Logger;
+    protected cliService: CliService;
+    protected logger: Logger;
     private repositories: Repository[] = [];
     private organizations: Organization[] = [];
     private multiRepos: MultiRepo[] = [];
@@ -211,5 +211,13 @@ export class RepositoryService {
         this._onRepositoriesChanged.fire(this.repositories);
         this._onOrganizationsChanged.fire(this.organizations);
         this.logger.info('Repository cache cleared');
+    }
+
+    /**
+     * Dispose of resources
+     */
+    dispose(): void {
+        this._onRepositoriesChanged.dispose();
+        this._onOrganizationsChanged.dispose();
     }
 }

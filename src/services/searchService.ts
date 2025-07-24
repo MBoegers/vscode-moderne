@@ -34,10 +34,10 @@ export interface SearchOptions {
 }
 
 export class SearchService {
-    private cliService: CliService;
-    private repositoryService: RepositoryService;
-    private configService: ConfigService;
-    private logger: Logger;
+    protected cliService: CliService;
+    protected repositoryService: RepositoryService;
+    protected configService: ConfigService;
+    protected logger: Logger;
 
     constructor(
         cliService: CliService,
@@ -461,5 +461,12 @@ recipeList:
             startColumn: sel.start.character,
             endColumn: sel.end.character
         };
+    }
+
+    /**
+     * Dispose of resources
+     */
+    dispose(): void {
+        // Base class dispose - subclasses can override
     }
 }

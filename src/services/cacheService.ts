@@ -109,7 +109,7 @@ export class CacheService {
     }
 
     private async saveToDisk(): Promise<void> {
-        if (!this.options.persistToDisk) return;
+        if (!this.options.persistToDisk) {return;}
 
         try {
             const cacheFile = path.join(this.storageUri.fsPath, `${this.options.namespace}.json`);

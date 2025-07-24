@@ -275,7 +275,7 @@ export abstract class LazyTreeProvider<T extends LazyTreeItem> implements vscode
 
         // Search in loaded items first
         for (const item of this.loadedItems.values()) {
-            if (results.length >= maxResults) break;
+            if (results.length >= maxResults) {break;}
             
             if (this.matchesSearch(item, searchLower)) {
                 results.push(item);
@@ -296,8 +296,8 @@ export abstract class LazyTreeProvider<T extends LazyTreeItem> implements vscode
     }
 
     private matchesSearch(item: T, searchLower: string): boolean {
-        const label = typeof item.label === 'string' ? item.label : item.label?.label || '';
-        const description = item.description || '';
+        const label = typeof item.label === 'string' ? item.label : (typeof item.label === 'object' && item.label?.label) || '';
+        const description = typeof item.description === 'string' ? item.description : '';
         const tooltip = typeof item.tooltip === 'string' ? item.tooltip : '';
 
         return label.toLowerCase().includes(searchLower) ||
@@ -391,7 +391,7 @@ export abstract class LazyTreeProvider<T extends LazyTreeItem> implements vscode
 
     // Visibility optimization
     setVisibleRange(startIndex: number, endIndex: number): void {
-        if (!this.options.enableVirtualization) return;
+        if (!this.options.enableVirtualization) {return;}
 
         // Mark items in visible range
         const allItems = Array.from(this.loadedItems.values());

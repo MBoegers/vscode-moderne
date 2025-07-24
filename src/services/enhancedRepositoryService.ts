@@ -322,9 +322,9 @@ export class EnhancedRepositoryService extends RepositoryService {
     private async detectBuildTool(repositoryPath: string): Promise<RepositoryMetadata['buildTool']> {
         const files = await fs.readdir(repositoryPath);
         
-        if (files.includes('pom.xml')) return 'maven';
-        if (files.includes('build.gradle') || files.includes('build.gradle.kts')) return 'gradle';
-        if (files.includes('package.json')) return 'npm';
+        if (files.includes('pom.xml')) {return 'maven';}
+        if (files.includes('build.gradle') || files.includes('build.gradle.kts')) {return 'gradle';}
+        if (files.includes('package.json')) {return 'npm';}
         
         return 'other';
     }
@@ -367,14 +367,15 @@ export class EnhancedRepositoryService extends RepositoryService {
 
         try {
             // Use Moderne CLI to analyze dependencies
-            const output = await this.cliService.executeCommand('mod', [
+            const result = await this.cliService.executeCommand([
+                'mod',
                 'study',
                 '--scope', 'dependencies',
                 '--format', 'json',
                 repositoryPath
             ]);
 
-            const analysis = JSON.parse(output);
+            const analysis = result.success ? JSON.parse(result.stdout || '{}') : {};
             
             if (analysis.dependencies) {
                 dependencies.push(...analysis.dependencies.map((dep: any) => ({
@@ -480,14 +481,15 @@ export class EnhancedRepositoryService extends RepositoryService {
 
         try {
             // Use Moderne CLI for health assessment
-            const output = await this.cliService.executeCommand('mod', [
+            const result = await this.cliService.executeCommand([
+                'mod',
                 'study',
                 '--scope', 'health',
                 '--format', 'json',
                 repositoryPath
             ]);
 
-            const analysis = JSON.parse(output);
+            const analysis = result.success ? JSON.parse(result.stdout || '{}') : {};
             
             if (analysis.health) {
                 health.scores = { ...health.scores, ...analysis.health.scores };
@@ -500,10 +502,10 @@ export class EnhancedRepositoryService extends RepositoryService {
 
         // Calculate overall health
         const avgScore = Object.values(health.scores).reduce((sum, score) => sum + score, 0) / 4;
-        if (avgScore >= 90) health.overall = 'excellent';
-        else if (avgScore >= 75) health.overall = 'good';
-        else if (avgScore >= 60) health.overall = 'fair';
-        else health.overall = 'poor';
+        if (avgScore >= 90) {health.overall = 'excellent';}
+        else if (avgScore >= 75) {health.overall = 'good';}
+        else if (avgScore >= 60) {health.overall = 'fair';}
+        else {health.overall = 'poor';}
 
         return health;
     }
@@ -515,18 +517,18 @@ export class EnhancedRepositoryService extends RepositoryService {
             const files = await fs.readdir(repositoryPath);
             
             // Add build tool tags
-            if (files.includes('pom.xml')) tags.push('maven');
-            if (files.includes('build.gradle')) tags.push('gradle');
-            if (files.includes('package.json')) tags.push('npm');
+            if (files.includes('pom.xml')) {tags.push('maven');}
+            if (files.includes('build.gradle')) {tags.push('gradle');}
+            if (files.includes('package.json')) {tags.push('npm');}
             
             // Add framework tags
-            if (files.some(f => f.includes('spring'))) tags.push('spring');
-            if (files.includes('angular.json')) tags.push('angular');
+            if (files.some(f => f.includes('spring'))) {tags.push('spring');}
+            if (files.includes('angular.json')) {tags.push('angular');}
             
             // Add language tags
-            if (files.some(f => f.endsWith('.java'))) tags.push('java');
-            if (files.some(f => f.endsWith('.ts'))) tags.push('typescript');
-            if (files.some(f => f.endsWith('.js'))) tags.push('javascript');
+            if (files.some(f => f.endsWith('.java'))) {tags.push('java');}
+            if (files.some(f => f.endsWith('.ts'))) {tags.push('typescript');}
+            if (files.some(f => f.endsWith('.js'))) {tags.push('javascript');}
             
         } catch (error) {
             this.logger.warn(`Failed to generate tags: ${error}`);
