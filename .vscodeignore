@@ -1,0 +1,43 @@
+# Source files
+src/**
+tsconfig.json
+.gitignore
+
+# Test files and coverage
+**/*.test.ts
+**/*.test.js
+**/test/**
+**/tests/**
+coverage/**
+.nyc_output/**
+.mocharc.json
+
+# Development files
+.vscode/**
+.github/**
+scripts/**
+docs/**
+
+# Development dependencies (keep runtime dependencies in node_modules)
+node_modules/@types/**
+node_modules/@typescript-eslint/**
+node_modules/@vscode/test-electron/**
+node_modules/@vscode/vsce/**
+node_modules/eslint/**
+node_modules/glob/**
+node_modules/mocha/**
+node_modules/nyc/**
+node_modules/typescript/**
+
+# Temporary files
+*.log
+.DS_Store
+Thumbs.db
+
+# Documentation and reports (keep README.md and FEATURES.md)
+PHASE3_*.md
+FINAL_TEST_REPORT.md
+TEST_TIMEOUT_FIXES.md
+v0.1.0-RELEASE-NOTES.md
+.claude/**
+spec/**

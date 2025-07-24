@@ -2,7 +2,7 @@
   "name": "vscode-moderne",
   "displayName": "Moderne (Community)",
   "description": "Community-developed VS Code extension for Moderne CLI integration, recipe debugging, and multi-repository code search",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "moderne",
   "license": "MIT",
   "repository": {
