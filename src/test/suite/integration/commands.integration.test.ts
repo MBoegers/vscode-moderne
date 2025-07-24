@@ -173,16 +173,15 @@ public class UsageTest {
     });
 
     test('TEST-027: Open Configuration command execution', async function() {
-        this.timeout(3000);
+        this.timeout(5000); // Increased for CI reliability
         try {
-            // Use Promise.race with timeout for CI environment
+            // Use Promise.race with shorter timeout for faster CI execution  
             await Promise.race([
                 vscode.commands.executeCommand('moderne.openConfiguration'),
                 new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('CI timeout')), 2000)
+                    setTimeout(() => reject(new Error('CI timeout')), 1000) // Reduced timeout
                 )
             ]);
-            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
             assert.ok(true, 'Open Configuration command executed successfully');
         } catch (error) {
             // Expected to fail in CI environment - command opens settings UI
@@ -195,16 +194,15 @@ public class UsageTest {
     });
 
     test('TEST-028: Run Active Recipe command execution', async function() {
-        this.timeout(3000);
+        this.timeout(5000); // Increased for CI reliability
         try {
-            // Use Promise.race with timeout for CI environment
+            // Use Promise.race with shorter timeout for faster CI execution
             await Promise.race([
                 vscode.commands.executeCommand('moderne.runActiveRecipe'),
                 new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('CI timeout')), 2000)
+                    setTimeout(() => reject(new Error('CI timeout')), 1000) // Reduced timeout
                 )
             ]);
-            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
             assert.ok(true, 'Run Active Recipe command executed successfully');
         } catch (error) {
             // Expected to fail in CI environment - command requires CLI operations

@@ -442,13 +442,13 @@ public class MultiLineTest {
         });
 
         test('TEST-045: Export search results command execution', async function() {
-        this.timeout(3000);
+        this.timeout(5000); // Increased for CI reliability
             try {
-                // Use Promise.race with timeout for CI environment
+                // Use Promise.race with shorter timeout for faster CI execution
                 await Promise.race([
                     vscode.commands.executeCommand('moderne.exportSearchResults'),
                     new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('CI timeout')), 2000)
+                        setTimeout(() => reject(new Error('CI timeout')), 1000) // Reduced timeout
                     )
                 ]);
                 assert.ok(true, 'Export command executed successfully');

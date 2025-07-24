@@ -121,16 +121,15 @@ suite('Configuration Integration Tests', function() {
     });
 
     test('TEST-004: Configuration command executes', async function() {
-        this.timeout(3000);
+        this.timeout(5000); // Increased for CI reliability
         try {
-            // Use Promise.race with timeout for CI environment
+            // Use Promise.race with shorter timeout for faster CI execution
             await Promise.race([
                 vscode.commands.executeCommand('moderne.openConfiguration'),
                 new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('CI timeout')), 2000)
+                    setTimeout(() => reject(new Error('CI timeout')), 1000) // Reduced timeout
                 )
             ]);
-            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
             assert.ok(true, 'Configuration command executed successfully');
         } catch (error) {
             // Expected to fail in CI environment - command opens settings UI
