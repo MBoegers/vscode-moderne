@@ -478,7 +478,7 @@
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
     "test:integration": "node ./out/test/runTest.js --grep \"Integration\"",
-    "test:unit": "node ./out/test/runTest.js --grep \"Unit\"",
+    "test:unit": "node ./out/test/runUnitTests.js",
     "test:verbose": "node ./out/test/runTest.js --reporter spec",
     "test:coverage": "nyc --reporter=html --reporter=text npm test",
     "package": "vsce package",

@@ -107,7 +107,7 @@ jobs:
     - name: Compile TypeScript
       run: npm run compile
       
-    - name: Run unit tests
+    - name: Run true unit tests (Node.js only)
       run: npm run test:unit
       env:
         CI: true
@@ -178,11 +178,57 @@ jobs:
           *.log
         retention-days: 14
 
+  # VSCode-dependent tests (extension.test.ts)
+  test-vscode:
+    name: VSCode Extension Tests
+    runs-on: ubuntu-latest
+    needs: test-core
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile TypeScript
+      run: npm run compile
+      
+    - name: Setup virtual display (for VSCode tests)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb dbus-x11
+        
+    - name: Run VSCode extension tests
+      run: xvfb-run -a npm run test
+      env:
+        CI: true
+        NODE_ENV: test
+        DISPLAY: ':99.0'
+        DBUS_SESSION_BUS_ADDRESS: 'disabled:'
+        NO_AT_BRIDGE: '1'
+        
+    - name: Upload VSCode test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: vscode-test-results
+        path: |
+          test-results.xml
+          *.log
+        retention-days: 7
+
   # Test coverage analysis
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: [test-matrix, test-integration]
+    needs: [test-matrix, test-integration, test-vscode]
     if: github.ref == 'refs/heads/main'
     
     steps:
@@ -231,7 +277,7 @@ jobs:
   package-test:
     name: Package Extension
     runs-on: ubuntu-latest
-    needs: [test-matrix, test-integration]
+    needs: [test-matrix, test-integration, test-vscode]
     
     steps:
     - name: Checkout code
@@ -303,7 +349,7 @@ jobs:
   validate:
     name: Final Validation
     runs-on: ubuntu-latest
-    needs: [test-matrix, test-integration, package-test, coverage, security]
+    needs: [test-matrix, test-integration, test-vscode, package-test, coverage, security]
     if: always()
     
     steps:
@@ -318,11 +364,12 @@ jobs:
         echo "Core Tests: ${{ needs.test-core.result }}"
         echo "Matrix Tests: ${{ needs.test-matrix.result }}"
         echo "Integration Tests: ${{ needs.test-integration.result }}"
+        echo "VSCode Tests: ${{ needs.test-vscode.result }}"
         echo "Package Test: ${{ needs.package-test.result }}"
         echo "Coverage: ${{ needs.coverage.result }}"
         echo "Security: ${{ needs.security.result }}"
         
-        if [[ "${{ needs.test-matrix.result }}" == "failure" || "${{ needs.test-integration.result }}" == "failure" ]]; then
+        if [[ "${{ needs.test-matrix.result }}" == "failure" || "${{ needs.test-integration.result }}" == "failure" || "${{ needs.test-vscode.result }}" == "failure" ]]; then
           echo "❌ Critical tests failed"
           exit 1
         elif [[ "${{ needs.package-test.result }}" == "failure" ]]; then
@@ -342,6 +389,7 @@ jobs:
         echo "| Core Tests | ${{ needs.test-core.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Cross-platform Tests | ${{ needs.test-matrix.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Integration Tests | ${{ needs.test-integration.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| VSCode Extension Tests | ${{ needs.test-vscode.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Package Creation | ${{ needs.package-test.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Code Coverage | ${{ needs.coverage.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Security Checks | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
