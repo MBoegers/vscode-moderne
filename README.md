@@ -3,6 +3,9 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Continuous Integration](https://github.com/MBoegers/vscode-moderne/actions/workflows/ci.yml/badge.svg)](https://github.com/MBoegers/vscode-moderne/actions/workflows/ci.yml)
 
+> [!WARNING]  
+> This extention is a spec driven purly vibe coded experiment and not meant for productive use. There will be no support nor further development.
+
 A community-developed Visual Studio Code extension for [Moderne](https://moderne.io) that integrates with the Moderne CLI to streamline OpenRewrite recipe development and testing.
 
 > **Note**: This is an unofficial, community-maintained extension and is not officially endorsed or supported by Moderne Inc.
